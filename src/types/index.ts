@@ -1,9 +1,24 @@
-export interface CartItem {
-  id: string;
+export type OrderStatus = 'جديد' | 'قيد التحضير' | 'جاهز' | 'تم التسليم' | 'ملغى' | 'مدفوع';
+export type OrderStatusFilter = 'الكل' | OrderStatus;
+
+export interface OrderItem {
+  flavorId: string;
   name: string;
   price: number;
   quantity: number;
-  image: string;
+}
+
+export interface Order {
+  id: string;
+  customerName: string;
+  phone: string;
+  area: string;
+  address: string;
+  items: OrderItem[];
+  deliveryFee: number;
+  status: OrderStatus;
+  notes?: string;
+  timestamp: number;
 }
 
 export interface Flavor {
@@ -14,28 +29,3 @@ export interface Flavor {
   special: boolean;
   image: string;
 }
-
-export interface OrderItem {
-  flavorId: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
-export type OrderStatus = 'جديد' | 'قيد التحضير' | 'جاهز' | 'تم التسليم';
-
-export interface Order {
-  id: string;
-  customerName: string;
-  phone: string;
-  area: string;
-  address: string;
-  notes: string;
-  items: OrderItem[];
-  status: OrderStatus;
-  timestamp: number;
-  deliveryFee: number;
-}
-
-export type CategoryFilter = 'الكل' | 'مميزة' | 'فواكه' | 'منعشة' | 'كلاسيكية';
-export type OrderStatusFilter = 'الكل' | 'جديد' | 'قيد التحضير' | 'جاهز' | 'تم التسليم';
