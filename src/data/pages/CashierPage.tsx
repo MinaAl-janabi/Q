@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useOrders } from '@/contexts/OrdersContext';
 import { useToast } from '@/contexts/ToastContext';
-import * as XLSX from 'xlsx';
+import writeXlsxFile from 'write-excel-file';
 
 // ─── Sound Effect ───
 function playNewOrderSound() {
@@ -135,30 +135,44 @@ export default function CashierPage() {
   };
 
   // ─── تصدير Excel ───
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (!orders.length) {
       showToast('لا توجد طلبات للتصدير', 'error');
       return;
     }
 
-    const data = orders.map((order: Order) => ({
-      'رقم الطلب': order.id,
-      'العميل': order.customerName,
-      'الهاتف': order.phone,
-      'المنطقة': order.area,
-      'العنوان': order.address,
-      'الأصناف': order.items.map((i: OrderItem) => `${i.name} (${i.quantity})`).join('، '),
-      'التوصيل': order.deliveryFee,
-      'الإجمالي': order.items.reduce((s: number, i: OrderItem) => s + i.price * i.quantity, 0) + order.deliveryFee,
-      'الحالة': order.status,
-      'الملاحظات': order.notes || '-',
-      'التاريخ': new Date(order.timestamp).toLocaleString('ar-IQ'),
-    }));
+    const header = [
+      { value: 'رقم الطلب', fontWeight: 'bold' as const },
+      { value: 'العميل', fontWeight: 'bold' as const },
+      { value: 'الهاتف', fontWeight: 'bold' as const },
+      { value: 'المنطقة', fontWeight: 'bold' as const },
+      { value: 'العنوان', fontWeight: 'bold' as const },
+      { value: 'الأصناف', fontWeight: 'bold' as const },
+      { value: 'التوصيل', fontWeight: 'bold' as const },
+      { value: 'الإجمالي', fontWeight: 'bold' as const },
+      { value: 'الحالة', fontWeight: 'bold' as const },
+      { value: 'الملاحظات', fontWeight: 'bold' as const },
+      { value: 'التاريخ', fontWeight: 'bold' as const },
+    ];
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'الطلبات');
-    XLSX.writeFile(workbook, `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const data = orders.map((order: Order) => [
+      { value: order.id },
+      { value: order.customerName },
+      { value: order.phone },
+      { value: order.area },
+      { value: order.address },
+      { value: order.items.map((i: OrderItem) => `${i.name} (${i.quantity})`).join('، ') },
+      { value: order.deliveryFee },
+      { value: order.items.reduce((s: number, i: OrderItem) => s + i.price * i.quantity, 0) + order.deliveryFee },
+      { value: order.status },
+      { value: order.notes || '-' },
+      { value: new Date(order.timestamp).toLocaleString('ar-IQ') },
+    ]);
+
+    await writeXlsxFile([header, ...data], {
+      fileName: `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    });
+
     showToast('تم تصدير الملف بنجاح');
   };
 
@@ -250,7 +264,7 @@ export default function CashierPage() {
       <div className="px-4 md:px-6 pb-2">
         <button
           onClick={exportToExcel}
-    className="flex items-center gap-3 bg-[#22c55e] hover:bg-[#16a34a] text-white px-6 py-3 rounded-2xl text-lg font-bold shadow-lg transition-transform transform hover:scale-105"
+          className="flex items-center gap-3 bg-[#22c55e] hover:bg-[#16a34a] text-white px-6 py-3 rounded-2xl text-lg font-bold shadow-lg transition-transform transform hover:scale-105"
         >
           <FileSpreadsheet size={24} />
           <span>تصدير Excel</span>

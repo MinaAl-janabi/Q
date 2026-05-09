@@ -3,13 +3,12 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings, Receipt, Printer, Home, Plus, Pencil, Trash2,
-  Search, X, ImageIcon, Star, ChevronLeft, LogOut, Shield, MapPin, FileSpreadsheet
+  Search, X, ImageIcon, Star, ChevronLeft, LogOut, Shield, MapPin
 } from 'lucide-react';
 import type { Flavor, Order, OrderItem, OrderStatus, OrderStatusFilter } from '@/types';
 import { useFlavors } from '@/contexts/FlavorsContext';
 import { useOrders } from '@/contexts/OrdersContext';
 import { useToast } from '@/contexts/ToastContext';
-import * as XLSX from 'xlsx';
 
 type AdminTab = 'flavors' | 'orders';
 
@@ -175,31 +174,6 @@ export default function AdminPage() {
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  // ─── تصدير Excel ───
-  const exportToExcel = () => {
-    if (!orders.length) {
-      showToast('لا توجد طلبات للتصدير', 'error');
-      return;
-    }
-    const data = orders.map((order: Order) => ({
-      'رقم الطلب': order.id,
-      'العميل': order.customerName,
-      'الهاتف': order.phone,
-      'المنطقة': order.area,
-      'العنوان': order.address,
-      'الأصناف': order.items.map((i: OrderItem) => `${i.name} (${i.quantity})`).join('، '),
-      'التوصيل': order.deliveryFee,
-      'الإجمالي': order.items.reduce((s: number, i: OrderItem) => s + i.price * i.quantity, 0) + order.deliveryFee,
-      'الحالة': order.status,
-      'التاريخ': new Date(order.timestamp).toLocaleString('ar-IQ'),
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'الطلبات');
-    XLSX.writeFile(workbook, `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    showToast('تم تصدير الملف بنجاح');
   };
 
   const filteredOrders = orderFilter === 'الكل'
@@ -452,18 +426,9 @@ export default function AdminPage() {
           {/* Orders Tab */}
           {activeTab === 'orders' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-[#f3f4f6] text-2xl font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
-                  الطلبات الواردة
-                </h2>
-                <button
-                  onClick={exportToExcel}
-                  className="flex items-center gap-2 bg-[#22c55e] hover:bg-[#16a34a] text-[#0a0e1a] px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-                >
-                  <FileSpreadsheet size={16} />
-                  <span>تصدير Excel</span>
-                </button>
-              </div>
+              <h2 className="text-[#f3f4f6] text-2xl font-bold mb-6" style={{ fontFamily: 'Cairo, sans-serif' }}>
+                الطلبات الواردة
+              </h2>
 
               <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
                 {orderStatusFilters.map((filter) => (
@@ -765,6 +730,7 @@ function OrderCard({
           <Trash2 size={14} />
         </button>
       </div>
+      
     </motion.div>
   );
 }

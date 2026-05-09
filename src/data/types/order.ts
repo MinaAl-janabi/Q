@@ -7,7 +7,7 @@ export type OrderStatus =
   | 'ملغى'
   | 'مدفوع';
 
-export interface OrderItem {
+export interface OrderI {
   id: string;
   customer_name?: string;
   customer_phone?: string;

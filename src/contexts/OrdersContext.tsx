@@ -1,17 +1,16 @@
-import React, { createContext, useContext, useState, useCallback,  } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import ExcelJS from 'exceljs';
 import { supabase } from '../data/lib/supabase';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
-import type { Order, OrderStatus } from '../data/types/order';
+import type { Order, OrderItem, OrderStatus } from '@/types';
 
 interface OrdersContextType {
   orders: Order[];
   loading: boolean;
-  addOrder: (payload: Omit<Order, 'id' | 'status' | 'created_at'>) => Promise<string>;
+  addOrder: (payload: Omit<Order, 'id' | 'status' | 'timestamp'>) => Promise<string>;
   updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   deleteOrder: (id: string) => Promise<void>;
   getOrderById: (id: string) => Order | undefined;
-  exportToExcel: () => void;
+  exportToExcel: () => Promise<void>;
 }
 
 const OrdersContext = createContext<OrdersContextType | undefined>(undefined);
@@ -24,88 +23,128 @@ export const OrdersProvider = ({ children }: { children: React.ReactNode }) => {
 
   const [loading, setLoading] = useState(false);
 
-  const saveToLocal = (orders: Order[]) => {
-    localStorage.setItem('orders', JSON.stringify(orders));
+  const saveToLocal = (updated: Order[]) => {
+    localStorage.setItem('orders', JSON.stringify(updated));
   };
 
-  const addOrder = useCallback(async (payload: Omit<Order, 'id' | 'status' | 'created_at'>) => {
-    setLoading(true);
-    try {
-      // إنشاء الطلب الجديد
-      const newOrder: Order = {
-        ...payload,
-        id: Date.now().toString(),
-        status: 'جديد',
-        created_at: new Date().toISOString(),
-      };
+  const addOrder = useCallback(
+    async (payload: Omit<Order, 'id' | 'status' | 'timestamp'>) => {
+      setLoading(true);
+      try {
+        const newOrder: Order = {
+          ...payload,
+          id: Date.now().toString(),
+          status: 'جديد',
+          timestamp: Date.now(),
+        };
 
-      // حفظ محلي
-      const newOrders = [newOrder, ...orders];
+        const newOrders = [newOrder, ...orders];
+        setOrders(newOrders);
+        saveToLocal(newOrders);
+
+        // حفظ في Supabase بالشكل الذي يتوقعه (snake_case)
+        try {
+          await supabase.from('orders').insert([{
+            id: newOrder.id,
+            customer_name: newOrder.customerName,
+            phone: newOrder.phone,
+            area: newOrder.area,
+            address: newOrder.address,
+            delivery_fee: newOrder.deliveryFee,
+            status: newOrder.status,
+            notes: newOrder.notes,
+            items: newOrder.items,
+            created_at: new Date(newOrder.timestamp).toISOString(),
+          }]);
+        } catch (e) {
+          console.warn('لم يتم حفظ الطلب في Supabase، محفوظ محلياً فقط', e);
+        }
+
+        return newOrder.id;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [orders]
+  );
+
+  const updateOrderStatus = useCallback(
+    async (id: string, status: OrderStatus) => {
+      const newOrders = orders.map((o) => (o.id === id ? { ...o, status } : o));
       setOrders(newOrders);
       saveToLocal(newOrders);
-
-      // حفظ في Supabase (إذا موجود)
       try {
-        await supabase.from('orders').insert([newOrder]);
+        await supabase.from('orders').update({ status }).eq('id', id);
       } catch (e) {
-        console.warn('لم يتم حفظ الطلب في Supabase، محفوظ محلياً فقط', e);
+        console.warn('تعذر تحديث الطلب في Supabase', e);
       }
+    },
+    [orders]
+  );
 
-      return newOrder.id;
-    } finally {
-      setLoading(false);
-    }
-  }, [orders]);
+  const deleteOrder = useCallback(
+    async (id: string) => {
+      const newOrders = orders.filter((o) => o.id !== id);
+      setOrders(newOrders);
+      saveToLocal(newOrders);
+      try {
+        await supabase.from('orders').delete().eq('id', id);
+      } catch (e) {
+        console.warn('تعذر حذف الطلب في Supabase', e);
+      }
+    },
+    [orders]
+  );
 
-  const updateOrderStatus = useCallback(async (id: string, status: OrderStatus) => {
-    // تحديث محلي
-    const newOrders = orders.map((o) => (o.id === id ? { ...o, status } : o));
-    setOrders(newOrders);
-    saveToLocal(newOrders);
+  const getOrderById = useCallback(
+    (id: string) => orders.find((o) => o.id === id),
+    [orders]
+  );
 
-    // تحديث Supabase (إذا موجود)
-    try {
-      await supabase.from('orders').update({ status }).eq('id', id);
-    } catch (e) {
-      console.warn('تعذر تحديث الطلب في Supabase', e);
-    }
-  }, [orders]);
+  const exportToExcel = useCallback(async () => {
+    if (!orders.length) { alert('لا توجد طلبات للتصدير'); return; }
 
-  const deleteOrder = useCallback(async (id: string) => {
-    const newOrders = orders.filter((o) => o.id !== id);
-    setOrders(newOrders);
-    saveToLocal(newOrders);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('الطلبات');
 
-    try {
-      await supabase.from('orders').delete().eq('id', id);
-    } catch (e) {
-      console.warn('تعذر حذف الطلب في Supabase', e);
-    }
-  }, [orders]);
+    worksheet.columns = [
+      { header: 'الرقم',    key: 'id',           width: 20 },
+      { header: 'الحالة',   key: 'status',        width: 15 },
+      { header: 'التاريخ',  key: 'timestamp',     width: 25 },
+      { header: 'العميل',   key: 'customerName',  width: 20 },
+      { header: 'الهاتف',   key: 'phone',         width: 15 },
+      { header: 'المنطقة',  key: 'area',          width: 15 },
+      { header: 'العنوان',  key: 'address',       width: 25 },
+      { header: 'التوصيل',  key: 'deliveryFee',   width: 12 },
+      { header: 'ملاحظات',  key: 'notes',         width: 25 },
+      { header: 'المنتجات', key: 'items',         width: 40 },
+    ];
 
-  const getOrderById = useCallback((id: string) => orders.find((o) => o.id === id), [orders]);
+    orders.forEach((order) => {
+      worksheet.addRow({
+        ...order,
+        timestamp: new Date(order.timestamp).toLocaleString('ar-IQ'),
+        items: order.items.map((i: OrderItem) => `${i.name} (${i.quantity})`).join('، '),
+      });
+    });
 
-  const exportToExcel = useCallback(() => {
-    if (!orders.length) return alert('لا توجد طلبات للتصدير');
-    const worksheet = XLSX.utils.json_to_sheet(orders);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Orders');
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    saveAs(new Blob([excelBuffer], { type: 'application/octet-stream' }), 'orders.xlsx');
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'orders.xlsx';
+    link.click();
+    URL.revokeObjectURL(url);
   }, [orders]);
 
   return (
-    <OrdersContext.Provider
-      value={{
-        orders,
-        loading,
-        addOrder,
-        updateOrderStatus,
-        deleteOrder,
-        getOrderById,
-        exportToExcel,
-      }}
-    >
+    <OrdersContext.Provider value={{
+      orders, loading,
+      addOrder, updateOrderStatus, deleteOrder, getOrderById, exportToExcel,
+    }}>
       {children}
     </OrdersContext.Provider>
   );
