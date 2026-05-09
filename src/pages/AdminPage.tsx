@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings, Receipt, Printer, Home, Plus, Pencil, Trash2,
   Search, X, ImageIcon, Star, ChevronLeft, LogOut, Shield, MapPin
 } from 'lucide-react';
-import type { Flavor, Order, OrderStatus, OrderStatusFilter } from '@/types';
+import type { Flavor, Order, OrderItem, OrderStatus, OrderStatusFilter } from '@/types';
 import { useFlavors } from '@/contexts/FlavorsContext';
 import { useOrders } from '@/contexts/OrdersContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -17,11 +17,46 @@ const statusColors: Record<OrderStatus, string> = {
   'قيد التحضير': 'bg-[rgba(59,130,246,0.15)] text-[#3b82f6] border-[rgba(59,130,246,0.3)]',
   'جاهز': 'bg-[rgba(34,197,94,0.15)] text-[#22c55e] border-[rgba(34,197,94,0.3)]',
   'تم التسليم': 'bg-[rgba(107,114,128,0.15)] text-[#6b7280] border-[rgba(107,114,128,0.3)]',
+  'ملغى': 'bg-[rgba(239,68,68,0.15)] text-[#ef4444] border-[rgba(239,68,68,0.3)]',
+  'مدفوع': 'bg-[rgba(34,197,94,0.15)] text-[#22c55e] border-[rgba(34,197,94,0.3)]',
 };
 
-const orderStatusFilters: OrderStatusFilter[] = ['الكل', 'جديد', 'قيد التحضير', 'جاهز', 'تم التسليم'];
+const orderStatusFilters: OrderStatusFilter[] = ['الكل', 'جديد', 'قيد التحضير', 'جاهز', 'تم التسليم', 'ملغى', 'مدفوع'];
 
 const categoryOptions = ['مميزة', 'فواكه', 'منعشة', 'كلاسيكية'];
+
+// ─── Sound Effect ───
+function playNewOrderSound() {
+  try {
+    const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(880, ctx.currentTime);
+    gain1.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc1.start(ctx.currentTime);
+    osc1.stop(ctx.currentTime + 0.4);
+
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1109, ctx.currentTime + 0.15);
+    gain2.gain.setValueAtTime(0.2, ctx.currentTime + 0.15);
+    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+    osc2.start(ctx.currentTime + 0.15);
+    osc2.stop(ctx.currentTime + 0.55);
+  } catch (e) {
+    console.error('Sound play failed:', e);
+  }
+}
 
 export default function AdminPage() {
   const { flavors, addFlavor, updateFlavor, deleteFlavor } = useFlavors();
@@ -37,7 +72,16 @@ export default function AdminPage() {
   const [orderFilter, setOrderFilter] = useState<OrderStatusFilter>('الكل');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Flavor modal
+  // ─── Sound: detect new orders ───
+  const prevOrdersLength = useRef(orders.length);
+  useEffect(() => {
+    if (isAuthenticated && orders.length > prevOrdersLength.current && prevOrdersLength.current > 0) {
+      playNewOrderSound();
+      showToast('طلب جديد وصل!', 'success');
+    }
+    prevOrdersLength.current = orders.length;
+  }, [orders.length, isAuthenticated, showToast]);
+
   const [showFlavorModal, setShowFlavorModal] = useState(false);
   const [editingFlavor, setEditingFlavor] = useState<Flavor | null>(null);
   const [flavorForm, setFlavorForm] = useState({
@@ -48,7 +92,6 @@ export default function AdminPage() {
     image: '',
   });
 
-  // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'flavor' | 'order'; id: string } | null>(null);
 
   const handleLogin = () => {
@@ -135,10 +178,10 @@ export default function AdminPage() {
 
   const filteredOrders = orderFilter === 'الكل'
     ? orders
-    : orders.filter((o) => o.status === orderFilter);
+    : orders.filter((o: Order) => o.status === orderFilter);
 
   const searchedFlavors = searchQuery
-    ? flavors.filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? flavors.filter((f: Flavor) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : flavors;
 
   if (!isAuthenticated) {
@@ -299,7 +342,6 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* Search */}
               <div className="relative mb-6">
                 <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6b7280]" />
                 <input
@@ -311,7 +353,6 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Flavors Table */}
               <div className="bg-[#111827] border border-[#1f2937] rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -326,7 +367,7 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {searchedFlavors.map((flavor) => (
+                      {searchedFlavors.map((flavor: Flavor) => (
                         <tr key={flavor.id} className="border-b border-[#1f2937] last:border-0 hover:bg-[#1a2235]/50 transition-colors">
                           <td className="py-3 px-4">
                             <img
@@ -389,7 +430,6 @@ export default function AdminPage() {
                 الطلبات الواردة
               </h2>
 
-              {/* Filter Pills */}
               <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
                 {orderStatusFilters.map((filter) => (
                   <button
@@ -406,14 +446,13 @@ export default function AdminPage() {
                 ))}
               </div>
 
-              {/* Orders List */}
               <div className="space-y-4">
                 <AnimatePresence>
-                  {filteredOrders.map((order) => (
+                  {filteredOrders.map((order: Order) => (
                     <OrderCard
                       key={order.id}
                       order={order}
-                      onStatusChange={(status) => updateOrderStatus(order.id, status)}
+                      onStatusChange={(status: OrderStatus) => updateOrderStatus(order.id, status)}
                       onDelete={() => setDeleteTarget({ type: 'order', id: order.id })}
                     />
                   ))}
@@ -458,7 +497,6 @@ export default function AdminPage() {
               </div>
 
               <div className="space-y-4">
-                {/* Name */}
                 <div>
                   <label className="text-[#9ca3af] text-xs mb-1.5 block">اسم النكهة *</label>
                   <input
@@ -470,7 +508,6 @@ export default function AdminPage() {
                   />
                 </div>
 
-                {/* Price */}
                 <div>
                   <label className="text-[#9ca3af] text-xs mb-1.5 block">السعر (د.ع) *</label>
                   <input
@@ -482,7 +519,6 @@ export default function AdminPage() {
                   />
                 </div>
 
-                {/* Category */}
                 <div>
                   <label className="text-[#9ca3af] text-xs mb-1.5 block">التصنيف</label>
                   <select
@@ -496,7 +532,6 @@ export default function AdminPage() {
                   </select>
                 </div>
 
-                {/* Special Toggle */}
                 <div className="flex items-center justify-between bg-[#1a2235] rounded-xl px-4 py-3">
                   <span className="text-[#f3f4f6] text-sm">نكهة مميزة</span>
                   <button
@@ -513,7 +548,6 @@ export default function AdminPage() {
                   </button>
                 </div>
 
-                {/* Image Upload */}
                 <div>
                   <label className="text-[#9ca3af] text-xs mb-1.5 block">صورة النكهة</label>
                   <div className="relative">
@@ -540,7 +574,6 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={handleSaveFlavor}
@@ -607,7 +640,6 @@ export default function AdminPage() {
   );
 }
 
-// Order Card Component
 function OrderCard({
   order,
   onStatusChange,
@@ -618,7 +650,7 @@ function OrderCard({
   onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const total = order.items.reduce((sum, i) => sum + i.price * i.quantity, 0) + order.deliveryFee;
+  const total = order.items.reduce((sum: number, i: OrderItem) => sum + i.price * i.quantity, 0) + order.deliveryFee;
 
   const statusFlow: OrderStatus[] = ['جديد', 'قيد التحضير', 'جاهز', 'تم التسليم'];
   const currentIdx = statusFlow.indexOf(order.status);
@@ -631,7 +663,6 @@ function OrderCard({
       exit={{ opacity: 0, y: -10 }}
       className="bg-[#111827] border border-[#1f2937] rounded-2xl p-5"
     >
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <h4 className="text-[#f3f4f6] font-bold" style={{ fontFamily: 'Cairo, sans-serif' }}>
@@ -646,7 +677,6 @@ function OrderCard({
         </span>
       </div>
 
-      {/* Customer Info */}
       <div className="text-sm text-[#9ca3af] mb-3 space-y-1">
         <p>{order.customerName} — {order.phone}</p>
         <p className="flex items-center gap-1">
@@ -655,9 +685,8 @@ function OrderCard({
         </p>
       </div>
 
-      {/* Items Preview */}
       <div className="text-sm mb-4">
-        {order.items.slice(0, expanded ? undefined : 2).map((item) => (
+        {order.items.slice(0, expanded ? undefined : 2).map((item: OrderItem) => (
           <div key={item.flavorId} className="flex justify-between py-1">
             <span className="text-[#9ca3af]">{item.name} × {item.quantity}</span>
             <span className="text-[#f3f4f6]">{(item.price * item.quantity).toLocaleString('ar-IQ')} د.ع</span>
@@ -678,7 +707,6 @@ function OrderCard({
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
         {currentIdx < statusFlow.length - 1 && (
           <button
@@ -698,13 +726,11 @@ function OrderCard({
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-        <button
-          onClick={onDelete}
-          className="text-[#6b7280] hover:text-[#ef4444] p-2 transition-colors mr-auto"
-        >
+        <button onClick={onDelete} className="text-[#6b7280] hover:text-[#ef4444] p-2 transition-colors mr-auto">
           <Trash2 size={14} />
         </button>
       </div>
+      
     </motion.div>
   );
 }

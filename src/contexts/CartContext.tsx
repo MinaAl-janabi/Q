@@ -1,30 +1,31 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import type { CartItem } from '@/types';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+
+export interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  quantity: number;
+}
 
 interface CartContextType {
   items: CartItem[];
+  isCartOpen: boolean;
+  totalPrice: number;
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
-  totalItems: number;
-  totalPrice: number;
-  isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('qcaFee_cart');
-    return saved ? JSON.parse(saved) : [];
-  });
+export const CartProvider = ({ children }: { children: React.ReactNode }) => {
+  const [items, setItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem('qcaFee_cart', JSON.stringify(items));
-  }, [items]);
+  const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const addItem = useCallback((item: Omit<CartItem, 'quantity'>) => {
     setItems((prev) => {
@@ -43,43 +44,39 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateQuantity = useCallback((id: string, quantity: number) => {
-    if (quantity <= 0) {
+    if (quantity < 1) {
       setItems((prev) => prev.filter((i) => i.id !== id));
-    } else {
-      setItems((prev) =>
-        prev.map((i) => (i.id === id ? { ...i, quantity } : i))
-      );
+      return;
     }
+    setItems((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, quantity } : i))
+    );
   }, []);
 
   const clearCart = useCallback(() => {
     setItems([]);
   }, []);
 
-  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
-  const totalPrice = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-
   return (
     <CartContext.Provider
       value={{
         items,
+        isCartOpen,
+        totalPrice,
         addItem,
         removeItem,
         updateQuantity,
         clearCart,
-        totalItems,
-        totalPrice,
-        isCartOpen,
         setIsCartOpen,
       }}
     >
       {children}
     </CartContext.Provider>
   );
-}
+};
 
-export function useCart() {
+export const useCart = () => {
   const context = useContext(CartContext);
   if (!context) throw new Error('useCart must be used within CartProvider');
   return context;
-}
+};

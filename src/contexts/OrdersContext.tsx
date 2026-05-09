@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import ExcelJS from 'exceljs';
-import { supabase } from '../data/lib/supabase';
+import { supabase } from '../lib/supabase';
 import type { Order, OrderItem, OrderStatus } from '@/types';
 
 interface OrdersContextType {
@@ -20,7 +20,6 @@ export const OrdersProvider = ({ children }: { children: React.ReactNode }) => {
     const saved = localStorage.getItem('orders');
     return saved ? JSON.parse(saved) : [];
   });
-
   const [loading, setLoading] = useState(false);
 
   const saveToLocal = (updated: Order[]) => {
@@ -37,12 +36,9 @@ export const OrdersProvider = ({ children }: { children: React.ReactNode }) => {
           status: 'جديد',
           timestamp: Date.now(),
         };
-
         const newOrders = [newOrder, ...orders];
         setOrders(newOrders);
         saveToLocal(newOrders);
-
-        // حفظ في Supabase بالشكل الذي يتوقعه (snake_case)
         try {
           await supabase.from('orders').insert([{
             id: newOrder.id,
@@ -57,9 +53,8 @@ export const OrdersProvider = ({ children }: { children: React.ReactNode }) => {
             created_at: new Date(newOrder.timestamp).toISOString(),
           }]);
         } catch (e) {
-          console.warn('لم يتم حفظ الطلب في Supabase، محفوظ محلياً فقط', e);
+          console.warn('Supabase save failed, saved locally', e);
         }
-
         return newOrder.id;
       } finally {
         setLoading(false);
@@ -76,7 +71,7 @@ export const OrdersProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         await supabase.from('orders').update({ status }).eq('id', id);
       } catch (e) {
-        console.warn('تعذر تحديث الطلب في Supabase', e);
+        console.warn('Supabase update failed', e);
       }
     },
     [orders]
@@ -90,7 +85,7 @@ export const OrdersProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         await supabase.from('orders').delete().eq('id', id);
       } catch (e) {
-        console.warn('تعذر حذف الطلب في Supabase', e);
+        console.warn('Supabase delete failed', e);
       }
     },
     [orders]

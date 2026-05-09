@@ -14,9 +14,6 @@ export default function FlavorCard({ flavor, index }: FlavorCardProps) {
   const { addItem } = useCart();
   const { showToast } = useToast();
   const [added, setAdded] = useState(false);
-  
-  
-
 
   const handleAdd = () => {
     addItem({
@@ -103,6 +100,5 @@ export default function FlavorCard({ flavor, index }: FlavorCardProps) {
         </div>
       </div>
     </motion.div>
-    
   );
 }
