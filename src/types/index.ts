@@ -39,3 +39,4 @@ export interface CartItem {
   image: string;
 }
 
+export type CategoryFilter = 'الكل' | 'مميزة' | 'فواكه' | 'منعشة' | 'كلاسيكية';
