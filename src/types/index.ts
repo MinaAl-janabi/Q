@@ -29,13 +29,13 @@ export interface Flavor {
   special: boolean;
   image: string;
 }
-// أضف في نهاية الملف
+
 export interface CartItem {
-  flavorId: string;
+  id: string;
+  flavorId?: string;
   name: string;
   price: number;
   quantity: number;
   image: string;
 }
 
-export type CategoryFilter = 'الكل' | 'مميزة' | 'فواكه' | 'منعشة' | 'كلاسيكية';
