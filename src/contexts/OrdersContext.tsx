@@ -86,9 +86,12 @@ export const OrdersProvider = ({ children }: { children: React.ReactNode }) => {
           items: payload.items,
         }]).select().single();
 
-        if (error) throw error;
-        return data.id;
-      } finally {
+       if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      } return data.id as string;
+      }
+      finally {
         setLoading(false);
       }
     },
