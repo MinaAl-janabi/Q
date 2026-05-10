@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { Flavor } from '@/types';
-import { initialFlavors } from '@/data/flavors';
+import { initialFlavors } from '../data/flavors';
 
 interface FlavorsContextType {
   flavors: Flavor[];
